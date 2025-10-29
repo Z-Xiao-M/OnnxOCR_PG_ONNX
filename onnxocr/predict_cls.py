@@ -3,6 +3,8 @@ import copy
 import numpy as np
 import math
 
+from config import MODEL_CLS, OUTPUT_KEY_CLS
+from db.connection import pg_onnx_infer
 from .cls_postprocess import ClsPostProcess
 from .predict_base import PredictBase
 
@@ -72,11 +74,26 @@ class TextClassifier(PredictBase):
             norm_img_batch = norm_img_batch.copy()
 
             input_feed = self.get_input_feed(self.cls_input_name, norm_img_batch)
-            outputs = self.cls_onnx_session.run(
-                self.cls_output_name, input_feed=input_feed
+
+            # 原代码
+            # outputs = self.cls_onnx_session.run(
+            #     self.cls_output_name, input_feed=input_feed
+            # )
+
+            # prob_out = outputs[0]
+
+            json_data = {}
+            nested_list = input_feed[self.cls_input_name[0]].tolist()
+            json_data[self.cls_input_name[0]] = nested_list
+
+            cls_outputs = pg_onnx_infer(
+                model_name=MODEL_CLS[0],
+                model_version=MODEL_CLS[1],
+                input_data=json_data
             )
 
-            prob_out = outputs[0]
+            # 转换为 numpy
+            prob_out = np.array(cls_outputs[OUTPUT_KEY_CLS])
 
             cls_result = self.postprocess_op(prob_out)
             for rno in range(len(cls_result)):

@@ -2,7 +2,8 @@ import numpy as np
 from .imaug import transform, create_operators
 from .db_postprocess import DBPostProcess
 from .predict_base import PredictBase
-
+from config import MODEL_DET, OUTPUT_KEY_DET
+from db.connection import pg_onnx_infer
 
 class TextDetector(PredictBase):
     def __init__(self, args):
@@ -104,10 +105,28 @@ class TextDetector(PredictBase):
         img = img.copy()
 
         input_feed = self.get_input_feed(self.det_input_name, img)
-        outputs = self.det_onnx_session.run(self.det_output_name, input_feed=input_feed)
+
+        # 原始代码
+        # outputs = self.det_onnx_session.run(self.det_output_name, input_feed=input_feed)
+        # print(f"  outputs：{outputs}")
+        # preds = {}
+        # preds["maps"] = outputs[0]
+
+        json_data = {}
+        nested_list = input_feed[self.det_input_name[0]].tolist()
+        json_data[self.det_input_name[0]] = nested_list
+
+        det_outputs = pg_onnx_infer(
+            model_name=MODEL_DET[0],
+            model_version=MODEL_DET[1],
+            input_data=json_data
+        )
+
+        # 转换为 numpy
+        det_outputs_np = np.array(det_outputs[OUTPUT_KEY_DET])
 
         preds = {}
-        preds["maps"] = outputs[0]
+        preds["maps"] = det_outputs_np
 
         post_result = self.postprocess_op(preds, shape_list)
         dt_boxes = post_result[0]["points"]

@@ -3,6 +3,8 @@ import numpy as np
 import math
 from PIL import Image
 
+from config import MODEL_REC, OUTPUT_KEY_REC
+from db.connection import pg_onnx_infer
 
 from .rec_postprocess import CTCLabelDecode
 from .predict_base import PredictBase
@@ -313,11 +315,26 @@ class TextRecognizer(PredictBase):
             # img = np.expand_dims(img, axis=0)
             # print(img.shape)
             input_feed = self.get_input_feed(self.rec_input_name, norm_img_batch)
-            outputs = self.rec_onnx_session.run(
-                self.rec_output_name, input_feed=input_feed
+
+            # 原代码
+            # outputs = self.rec_onnx_session.run(
+            #     self.rec_output_name, input_feed=input_feed
+            # )
+
+            # preds = outputs[0]
+
+            json_data = {}
+            nested_list = input_feed[self.rec_input_name[0]].tolist()
+            json_data[self.rec_input_name[0]] = nested_list
+
+            rec_outputs = pg_onnx_infer(
+                model_name=MODEL_REC[0],
+                model_version=MODEL_REC[1],
+                input_data=json_data
             )
 
-            preds = outputs[0]
+            # 转换为 numpy
+            preds = np.array(rec_outputs[OUTPUT_KEY_REC])
 
             rec_result = self.postprocess_op(preds)
             for rno in range(len(rec_result)):
